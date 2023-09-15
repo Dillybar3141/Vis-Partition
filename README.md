@@ -29,6 +29,7 @@ python vis_partition.py [args]
 - `-e`, `--environment`: Format LaTeX as an environment (for different packages)
 - `-c COMMAND`, `--command COMMAND`: Set the LaTeX command to use (for different packages)
 - `--no-wrap`: Disable line wrapping (always used with -o)
+- `--verbose`: Print full error tracebacks
 
 - `-h`, `--help`: Show help message and exit
 

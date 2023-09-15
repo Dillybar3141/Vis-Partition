@@ -8,7 +8,7 @@ Given a string in the format:
 ```
 where each [pxy...] is a partition, each +/- is either a '+' or '-' and a leading '+' optionally omitted, a visualization in either plain text or LaTeX is produced. The input and/or output can be made to be files.
 ```
-python vis_partition.py [-h] [-i INPUT] [-f FILE] [-o OUT] [-a] [-s SEP] [-t] [-l] [-e] [-c COMMAND] [--no-wrap]
+python vis_partition.py [args]
 ```
 
 ### Options

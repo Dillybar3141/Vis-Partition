@@ -8,15 +8,20 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 from sys import stdout
 from shutil import get_terminal_size
 
-__version__ = "1.0"
+__version__ = "1.1"
 PROG_NAME = "python vis_partition.py"
 DESCRIPTION = """description:
     Given an encoding in the format:
-        +/- S1[p1a...] S2[p1b...] ... +/- S1[p2a...] S2[p2b...] ... +/- ...
-    where each [pxy...] is a partition, each +/- is either a '+' or '-' and
-    a leading '+' optionally omitted, a visualization in either plain text
-    or LaTeX is produced. The input and/or output can be made to be files."""
-EPILOG = f"""input files:
+        +/- c1S1[p1a...] S2[p1b...] ... +/- c2S1[p2a...] S2[p2b...] ... +/- ...
+    where each [pxy...] is a partition, each +/- is either a '+' or '-',
+    each cx is an integer coefficient and a leading '+' or coefficient is
+    optionally omitted, a visualization in either plain text or LaTeX is
+    produced. The partitions are sorted based the index on S, so both of
+    S1[p1]S2[p2] and S2[p2]S1[p1] produce the same result. Additionally,
+    The input and/or output can be made to be files. Outputs are automatically
+    line-wrapped to fit your terminal size, so if you resize the terminal,
+    the partitions may not display correctly."""
+EPILOG = """input files:
     Each line of the file is used as a separate input. In the output, the
     inputs on separate lines are separated by 4 newlines. Whitespace other
     than newlines are ignored.
@@ -24,22 +29,22 @@ EPILOG = f"""input files:
 examples:
     
     open an interactive session:
-        {PROG_NAME}
+        python vis_partition.py
 
     read input from commandline:
-        {PROG_NAME} -i "S1[3] S2[1, 1] S3[2, 2] S4[1] - S1[3] S2[0] S3[1, 1] S4[1]"
+        python vis_partition.py -i "S1[3] S2[1, 1] S3[2, 2] S4[1] - S1[3] S2[0] S3[1, 1] S4[1]"
 
     read input from a file:
-        {PROG_NAME} -f input.txt
+        python vis_partition.py -f input.txt
 
     output to a file:
-        {PROG_NAME} -f input.txt -o output.txt
+        python vis_partition.py -f input.txt -o output.txt
 
     format output as LaTeX:
-        {PROG_NAME} -l
+        python vis_partition.py -l
 
     use a different LaTeX package (e.g. ytableau):
-        {PROG_NAME} -l -e -c ytableau"""
+        python vis_partition.py -l -e -c ytableau"""
 
 
 def chunks(iterable, n=1):
@@ -49,35 +54,53 @@ def chunks(iterable, n=1):
         yield iterable[ndx:min(ndx + n, l)]
 
 
-def substring_to_group(substring: str) -> list[list[int]]:
+def removeprefix(s, prefix):
+    if s.startswith(prefix):
+        return s[len(prefix):]
+    return s
+
+
+def removesuffix(s, suffix):
+    if s.endswith(suffix):
+        return s[:-len(suffix)]
+    return s
+
+
+def substring_to_group(substring):
     """Parses a substring of the form:
-        S1[partition1] S2[partition2] ...
+        aS1[partition1...] S2[partition2...] ...
     Into a list of lists:
-        [[partition1], [partition2], ...].
+        ["a", ["S1", partition1...], ["S2", partition2...], ...].
 
     Example:
-        S1[3] S2[1, 1] S3[2, 2] S4[1]
-        --> [[3], [1,1], [2,2], [1]]
+        2S1[3] S2[1, 1] S4[2, 2] S3[1]
+        --> ["a", ["S1", 3], ["S2", 1,1], ["S4", 2,2], ["S3", 1]]
     """
-    part_strings = substring.split("S")[1:]
+    lead, substring, _ = re.split(r"(S.*)", substring, maxsplit=1)
+    s_part_strings = re.split(r"(S\d+)", substring)[1:]
+    s_strings = s_part_strings[::2]
+    part_strings = s_part_strings[1::2]
+    s_ints = [int(removeprefix(x, "S")) for x in s_strings]
     parts = [
-        x.partition("[")[2].strip().removesuffix("]")
+        removesuffix(removeprefix(x, "["), "]")
     for x in part_strings]
-    output = []
-    for part in parts:
+    terms = list(zip(s_ints, parts))
+    terms.sort(key = lambda x: x[0])
+    output = [lead]
+    for _, part in terms:
         output.append([int(x.strip()) for x in part.split(",")])
     return output
 
 
-def string_to_encoding(data: str) -> list[list[list[int]]]:
+def string_to_encoding(data):
     """Parses a string of the form:
-        S1[1a] S2[1b] ... + S1[2a] S2[2b] ... - S1[3a] S2[3b] ... + ...
+        aS1[1a] S2[1b] ... + bS1[2a] S2[2b] ... - cS1[3a] S2[3b] ... + ...
     Into a list of list of lists:
-        [[1, [1a], [1b], ...], [1, [2a], [2b], ...], [-1, [3a], [3b], ...], ...]
+        [["+", "a", ["S1", 1a], ["S2", 1b], ...], ["+", "b", ["S1", 2a], ["S2", 2b], ...], ["-", "c", ["S1", 3a], ["S2", 3b], ...], ...]
 
     Example:
-        S1[3] S2[1, 1] S3[2, 2] S4[1] - S1[3] S2[0] S3[1, 1] S4[1]
-        --> [["+", [3], [1,1], [2,2], [1]], ["-", [3], [0], [1,1], [1]]
+        S1[3] S2[1, 1] S3[2, 2] S4[1] - 3S1[3] S2[0] S3[1, 1] S4[1]
+        --> [["+", ["S1", 3], ["S2", 1, 1], ["S3", 2,2], ["S4", 1]], ["-", "3", ["S1", 3], ["S2", 0], ["S3", 1, 1], ["S4", 1]]
     """
     substrings = re.split(r"(\+|-)", data)
     substrings = [x.strip() for x in substrings]
@@ -93,7 +116,7 @@ def string_to_encoding(data: str) -> list[list[list[int]]]:
     return output
 
 
-def join_lines(line_groups: list[list[str]], max_lines: int, max_width: int = None) -> str:
+def join_lines(line_groups, max_lines, max_width=None):
     """Join groups of lines in parallel rows such that no row exceeds max_width.
     
     Example:
@@ -118,29 +141,29 @@ def join_lines(line_groups: list[list[str]], max_lines: int, max_width: int = No
     return "\n\n".join(chunk_strings)
 
         
-def group_to_lines(group: list[list[int]], idx: int, sep: str, boundary: tuple[str,str]) -> list[str]:
+def group_to_lines(group, idx, sep, boundary):
     """Convert a group of partitions into a list of lines to be vertically aligned.
     The separator sep is used between partitions. If the index idx is 0, a leading + is omitted.
     The boundary string is a pair of character to print at the beginning and end usually ("(",")") or (" "," ").
     
     Example:
-        group = ["+", [3,2,2], [2,1], [1]]
+        group = ["+", "2", [3,2,2], [2,1], [1]]
         -->
-        ["+ (xxx, xx, x)",
-         "   xx   x     ",
-         "   xx         "]
+        ["+ 2(xxx, xx, x)",
+         "    xx   x     ",
+         "    xx         "]
     """
     first_line_parts = []
-    for partition in group[1:]:
+    for partition in group[2:]:
         max_part = max(max(partition), 1)
         if len(partition) == 1 and partition[0] == 0:
             first_line_parts.append("1")
         else:
             first_line_parts.append("x"*partition[0] + " "*(max_part - partition[0]))
-    lines = [group[0] + " (" + sep.join(first_line_parts) + ")"]
-    for i in range(1,max(len(partition) for partition in group[1:])):
-        line = "  " + boundary[0]
-        for j, partition in enumerate(group[1:]):
+    lines = [group[0] + " " + group[1] + "(" + sep.join(first_line_parts) + ")"]
+    for i in range(1,max(len(partition) for partition in group[2:])):
+        line = "  " + " "*len(group[1]) + boundary[0]
+        for j, partition in enumerate(group[2:]):
             max_part = max(max(partition), 1)
             spacing = " "*len(sep) if j > 0 else ""
             part = partition[i] if i < len(partition) else 0
@@ -153,7 +176,7 @@ def group_to_lines(group: list[list[int]], idx: int, sep: str, boundary: tuple[s
     return lines
 
 
-def encoding_to_text(encoding: list[list[list[int]]], sep: str, max_width: int, tall: bool) -> str:
+def encoding_to_text(encoding, sep, max_width, tall):
     """Convert an encoding to plain text, with the seperator sep between partitions.
     If max_width is specified, lines will wrap such that no line exceeds the max_width.
     If tall is true, the parentheses will extend the full height.
@@ -172,7 +195,7 @@ def encoding_to_text(encoding: list[list[list[int]]], sep: str, max_width: int, 
         return join_lines(line_groups, max_lines, max_width)
 
 
-def partition_to_latex(partition: list[int], command: str, environment: bool) -> str:
+def partition_to_latex(partition, command, environment):
     """Generate the LaTeX code for a single partition. Use the specified latex command.
     If latex_environment is set, it will generate code for an environment rather than a command.
     
@@ -191,15 +214,15 @@ def partition_to_latex(partition: list[int], command: str, environment: bool) ->
         return "\\" + command + "{" + " \\\\ ".join(parts) + "}"
     
 
-def encoding_to_latex(encoding: list[list[list[int]]], sep: str, command: str, environment: bool) -> str:
+def encoding_to_latex(encoding, sep, command, environment):
     """Convert an encoding to LaTeX code, with the separator sep between partitions.
     See partition_to_latex for the meaning of the other arguments."""
     output = ""
     for group in encoding:
         partition_strings = [
             partition_to_latex(partition, command, environment)
-        for partition in group[1:]]
-        output += "\n" + group[0] + " \\left(" + sep.join(partition_strings) + "\\right) "
+        for partition in group[2:]]
+        output += "\n" + group[0] + " " + group[1] + "\\left(" + sep.join(partition_strings) + "\\right) "
     output = output[1:]
     if output[0] == "+":
         output = output[1:]
@@ -266,7 +289,7 @@ def main():
 
     latex_command = "tableau"
     if args.command:
-        latex_command = args.command.removeprefix("\\")
+        latex_command = removeprefix(args.command, "\\")
     kwargs = {
         "as_latex": args.latex,
         "latex_command": latex_command,
@@ -296,8 +319,10 @@ def main():
     else:
         print("Enter input string (Press enter with no input to exit; for other input methods see --help):")
         try:
-            while (data := input("\n> ")):
+            data = input("\n> ")
+            while data:
                 display_partitions(data, **kwargs, wrapping=(not args.no_wrap))
+                data = input("\n> ")
         except KeyboardInterrupt:
             print()
 

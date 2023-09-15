@@ -82,7 +82,7 @@ def substring_to_group(substring):
     part_strings = s_part_strings[1::2]
     s_ints = [int(removeprefix(x, "S")) for x in s_strings]
     parts = [
-        removesuffix(removeprefix(x, "["), "]")
+        removesuffix(removeprefix(x.strip(), "["), "]")
     for x in part_strings]
     terms = list(zip(s_ints, parts))
     terms.sort(key = lambda x: x[0])
@@ -229,8 +229,7 @@ def encoding_to_latex(encoding, sep, command, environment):
     return output.strip()
     
 
-def display_partitions(data, *, sep=None, as_latex=False, latex_command=None, latex_environment=False,
-                       output_stream=None, wrapping=False, tall=False, verbose=False):
+def display_partitions(data, sep=None, as_latex=False, latex_command=None, latex_environment=False, output_stream=None, wrapping=False, tall=False, verbose=False):
     
     if output_stream is None:
         output_stream = stdout

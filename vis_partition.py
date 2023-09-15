@@ -112,7 +112,7 @@ def string_to_encoding(data):
     output = []
     for sign, substring in chunks(substrings, 2):
         encoding = substring_to_group(substring)
-        output.append([sign, *encoding])
+        output.append([sign] + encoding)
     return output
 
 

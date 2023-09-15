@@ -4,9 +4,14 @@
 
 Given a string in the format:
 ```
-+/- S1[p1a...] S2[p1b...] ... +/- S1[p2a...] S2[p2b...] ... +/- ...
++/- c1S1[p1a...] S2[p1b...] ... +/- c2S1[p2a...] S2[p2b...] ... +/- ...
 ```
-where each [pxy...] is a partition, each +/- is either a '+' or '-' and a leading '+' optionally omitted, a visualization in either plain text or LaTeX is produced. The input and/or output can be made to be files.
+where each [pxy...] is a partition, each +/- is either a '+' or '-',
+each cx is an integer coefficient and a leading '+' or coefficient is
+optionally omitted, a visualization in either plain text or LaTeX is
+produced. The partitions are sorted based the index on S, so both of
+S1[p1]S2[p2] and S2[p2]S1[p1] produce the same result. Additionally,
+The input and/or output can be made to be files.
 ```
 python vis_partition.py [args]
 ```

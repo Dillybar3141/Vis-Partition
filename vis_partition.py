@@ -229,12 +229,18 @@ def encoding_to_latex(encoding, sep, command, environment):
     return output.strip()
     
 
-def display_partitions(data, *, sep=None, as_latex=False, latex_command=None,
-                       latex_environment=False, output_stream=None, wrapping=False, tall=False):
+def display_partitions(data, *, sep=None, as_latex=False, latex_command=None, latex_environment=False,
+                       output_stream=None, wrapping=False, tall=False, verbose=False):
     
     if output_stream is None:
         output_stream = stdout
-    encoding = string_to_encoding(data)
+    try:
+        encoding = string_to_encoding(data)
+    except Exception:
+        print("Failed to Decode Input String")
+        if verbose:
+            raise
+        return
 
     # Check for any invalid groups
     if any(len(group) == 1 for group in encoding):
@@ -247,26 +253,34 @@ def display_partitions(data, *, sep=None, as_latex=False, latex_command=None,
         print("(ex: \"S1[3] S2[1, 1] S3[2, 2] S4[1] - S1[3] S2[0] S3[1, 1] S4[1]\")", file=output_stream)
         return
     
-    if output_stream == stdout:
-        print("", file=output_stream)
+    try:
 
-    if as_latex:
-        if latex_command is None:
-            latex_command = "tableau"
-        if sep is None:
-            sep = ",\, "
-        output = encoding_to_latex(encoding, sep, latex_command, latex_environment)
+        if output_stream == stdout:
+            print("", file=output_stream)
 
-    else:
-        if sep is None:
-            sep = ", "
-        if wrapping:
-            width, _ = get_terminal_size((60, 20))
+        if as_latex:
+            if latex_command is None:
+                latex_command = "tableau"
+            if sep is None:
+                sep = ",\, "
+            output = encoding_to_latex(encoding, sep, latex_command, latex_environment)
+
         else:
-            width = None
-        output = encoding_to_text(encoding, sep, width, tall)
+            if sep is None:
+                sep = ", "
+            if wrapping:
+                width, _ = get_terminal_size((60, 20))
+            else:
+                width = None
+            output = encoding_to_text(encoding, sep, width, tall)
 
-    print(output, file=output_stream)
+        print(output, file=output_stream)
+
+    except Exception:
+        print("Failed to Display Encoding")
+        if verbose:
+            raise
+        return
     
 
 def main():
@@ -283,6 +297,7 @@ def main():
         argparser.add_argument("-e", "--environment", action="store_true", help="Format LaTeX as an environment (for different packages)")
         argparser.add_argument("-c", "--command", action="store", help="Set the LaTeX command to use (for different packages)")
         argparser.add_argument("--no-wrap", action="store_true", help="Disable line wrapping (always used with -o)")
+        argparser.add_argument("--verbose", action="store_true", help="Print full error tracebacks")
         return argparser.parse_args()
     
     args = parse_args()
@@ -295,7 +310,8 @@ def main():
         "latex_command": latex_command,
         "latex_environment": args.environment,
         "sep": args.sep,
-        "tall": args.tall
+        "tall": args.tall,
+        "verbose": args.verbose
     }
 
     if args.file:

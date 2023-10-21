@@ -1,6 +1,6 @@
 # Vis-Partition
 
-### Usage
+## Usage
 
 Given a string in the format:
 ```
@@ -18,25 +18,36 @@ the partitions may not display correctly.
 python vis_partition.py [args]
 ```
 
-### Options
-- `-i INPUT`: Read input from commandline
-- `-f FILE`, `--file FILE`: Read input from a file (overrides -i)
-- `-o OUT`, `--out OUT`: Output to a file (only available with -f)
-- `-a`, `--append`: Append to output file rather than overwrite (used with -o)
-- `-s SEP`, `--sep SEP`: Separator within in each group (defaults: text=", " latex=",\, ")
-- `-t`, `--tall`: When outputting text, print parentheses at full height
-- `-l`, `--latex`: Output using LaTeX format
-- `-e`, `--environment`: Format LaTeX as an environment (for different packages)
-- `-c COMMAND`, `--command COMMAND`: Set the LaTeX command to use (for different packages)
-- `--no-wrap`: Disable line wrapping (always used with -o)
-- `--verbose`: Print full error tracebacks
+## Options
 
-- `-h`, `--help`: Show help message and exit
+| Option | Description |
+| ------ | ----------- |
+| `-i INPUT` | Read input from commandline |
+| `-f FILE`, `--file FILE` | Read input from a file (overrides -i) |
+| `-o OUT`, `--out OUT` | Output to a file (only available with -f) |
+| `-a`, `--append` | Append to output file rather than overwrite (used with -o) |
+| `-s SEP`, `--sep SEP` | Separator within in each group (defaults| text=", " latex=",\, ") |
+| `-t`, `--tall` | When outputting text, print parentheses at full height |
+| `-l`, `--latex` | Output using LaTeX format |
+| `-e`, `--environment` | Format LaTeX as an environment (for different packages) |
+| `-c COMMAND`, `--command COMMAND` | Set the LaTeX command to use (for different packages) |
+| `--no-wrap` | Disable line wrapping (always used with -o) |
+| `--verbose` | Print full error tracebacks and debug information |
+| `--force` | Ignores warnings and forces an output |
+| `-h`, `--help` | Show help message and exit |
 
-### Input Files
+## Input Files
 Each line of the file is used as a separate input. In the output, the inputs on separate lines are separated by 4 newlines. Whitespace other than newlines are ignored.
 
-### Examples
+## LaTeX
+If you are using formatted LaTeX (without the `--raw` flag), you will need to include the following in your preamble:
+```latex
+\usepackage{tcolorbox}
+\tcbuselibrary{breakable}
+\newtcolorbox{vispartition}{halign=flush left, breakable, colback=white, colframe=white, boxrule=0pt, boxsep=0pt, fontupper=\linespread{2.5}\selectfont}
+```
+
+## Examples
 
 - open an interactive session:
   ```

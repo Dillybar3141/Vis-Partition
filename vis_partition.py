@@ -8,7 +8,7 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 from sys import stdout
 from shutil import get_terminal_size
 
-__version__ = "1.1"
+__version__ = "1.2"
 PROG_NAME = "python vis_partition.py"
 DESCRIPTION = """description:
     Given an encoding in the format:
@@ -45,6 +45,7 @@ examples:
 
     use a different LaTeX package (e.g. ytableau):
         python vis_partition.py -l -e -c ytableau"""
+PARSER_NAMES = ["maple", "sage"]
 
 
 def chunks(iterable, n=1):
@@ -65,55 +66,55 @@ def removesuffix(s, suffix):
         return s[:-len(suffix)]
     return s
 
+class MapleParser:
 
-def substring_to_group(substring):
-    """Parses a substring of the form:
-        aS1[partition1...] S2[partition2...] ...
-    Into a list of lists:
-        ["a", ["S1", partition1...], ["S2", partition2...], ...].
+    def substring_to_group(self, substring):
+        """Parses a substring of the form:
+            aS1[partition1...] S2[partition2...] ...
+        Into a list of lists sorted by the index on S:
+            ["a", [partition1...], [partition2...], ...].
 
-    Example:
-        2S1[3] S2[1, 1] S4[2, 2] S3[1]
-        --> ["a", ["S1", 3], ["S2", 1,1], ["S4", 2,2], ["S3", 1]]
-    """
-    lead, substring, _ = re.split(r"(S.*)", substring, maxsplit=1)
-    s_part_strings = re.split(r"(S\d+)", substring)[1:]
-    s_strings = s_part_strings[::2]
-    part_strings = s_part_strings[1::2]
-    s_ints = [int(removeprefix(x, "S")) for x in s_strings]
-    parts = [
-        removesuffix(removeprefix(x.strip(), "["), "]")
-    for x in part_strings]
-    terms = list(zip(s_ints, parts))
-    terms.sort(key = lambda x: x[0])
-    output = [lead]
-    for _, part in terms:
-        output.append([int(x.strip()) for x in part.split(",")])
-    return output
+        Example:
+            2S1[3] S2[1, 1] S4[2, 2] S3[1]
+            --> ["2", [3], [1,1], [1], [2,2]]
+        """
+        lead, substring, _ = re.split(r"(S.*)", substring, maxsplit=1)
+        s_part_strings = re.split(r"(S\d+)", substring)[1:]
+        s_strings = s_part_strings[::2]
+        part_strings = s_part_strings[1::2]
+        s_ints = [int(removeprefix(x, "S")) for x in s_strings]
+        parts = [
+            removesuffix(removeprefix(x.strip(), "["), "]")
+        for x in part_strings]
+        terms = list(zip(s_ints, parts))
+        terms.sort(key = lambda x: x[0])
+        output = [lead]
+        for _, part in terms:
+            output.append([int(x.strip()) for x in part.split(",")])
+        return output
 
+    def string_to_encoding(self, data):
+        """Parses a string of the form:
+            aS1[1a] S2[1b] ... + bS1[2a] S2[2b] ... - cS1[3a] S2[3b] ... + ...
+        Into a list of list of lists:
+            [["+", "a", [1a], [1b], ...], ["+", "b", [2a], [2b], ...], ["-", "c", [3a], [3b], ...], ...]
 
-def string_to_encoding(data):
-    """Parses a string of the form:
-        aS1[1a] S2[1b] ... + bS1[2a] S2[2b] ... - cS1[3a] S2[3b] ... + ...
-    Into a list of list of lists:
-        [["+", "a", ["S1", 1a], ["S2", 1b], ...], ["+", "b", ["S1", 2a], ["S2", 2b], ...], ["-", "c", ["S1", 3a], ["S2", 3b], ...], ...]
-
-    Example:
-        S1[3] S2[1, 1] S3[2, 2] S4[1] - 3S1[3] S2[0] S3[1, 1] S4[1]
-        --> [["+", ["S1", 3], ["S2", 1, 1], ["S3", 2,2], ["S4", 1]], ["-", "3", ["S1", 3], ["S2", 0], ["S3", 1, 1], ["S4", 1]]
-    """
-    substrings = re.split(r"(\+|-)", data)
-    substrings = [x.strip() for x in substrings]
-    if len(substrings[0]) == 0:
-        substrings = substrings[1:]
-    else:
-        substrings.insert(0, "+")
-    assert len(substrings) % 2 == 0
-    output = []
-    for sign, substring in chunks(substrings, 2):
-        encoding = substring_to_group(substring)
-        output.append([sign] + encoding)
-    return output
+        Example:
+            S1[3] S2[1, 1] S3[2, 2] S4[1] - 3S1[3] S2[0] S3[1, 1] S4[1]
+            --> [['+', '', [3], [1, 1], [2, 2], [1]], ['-', '3', [3], [0], [1, 1], [1]]]
+        """
+        substrings = re.split(r"(\+|-)", data)
+        substrings = [x.strip() for x in substrings]
+        if len(substrings[0]) == 0:
+            substrings = substrings[1:]
+        else:
+            substrings.insert(0, "+")
+        assert len(substrings) % 2 == 0
+        output = []
+        for sign, substring in chunks(substrings, 2):
+            encoding = self.substring_to_group(substring)
+            output.append([sign] + encoding)
+        return output
 
 
 def join_lines(line_groups, max_lines, max_width=None):
@@ -214,7 +215,7 @@ def partition_to_latex(partition, command, environment):
         return "\\" + command + "{" + " \\\\ ".join(parts) + "}"
     
 
-def encoding_to_latex(encoding, sep, command, environment):
+def encoding_to_latex(encoding, sep, command, environment, raw):
     """Convert an encoding to LaTeX code, with the separator sep between partitions.
     See partition_to_latex for the meaning of the other arguments."""
     output = ""
@@ -226,15 +227,27 @@ def encoding_to_latex(encoding, sep, command, environment):
     output = output[1:]
     if output[0] == "+":
         output = output[1:]
-    return output.strip()
+    if raw:
+        return output.strip()
+    else:
+        ENV_PREFIX = "\\begin{vispartition}\\(\n"
+        ENV_SUFFIX = "\n\\)\\end{vispartition}"
+        return ENV_PREFIX + output.strip() + ENV_SUFFIX
     
 
-def display_partitions(data, sep=None, as_latex=False, latex_command=None, latex_environment=False, output_stream=None, wrapping=False, tall=False, verbose=False):
+def display_partitions(data, parser, sep=None, as_latex=False, latex_command=None, latex_environment=False, latex_raw=False, output_stream=None, wrapping=False, tall=False, verbose=False, force=False):
     
     if output_stream is None:
         output_stream = stdout
     try:
-        encoding = string_to_encoding(data)
+        if verbose:
+            print("Raw Input:", repr(data))
+        if r"\x1b[" in repr(data):
+            print("Warning: The input contains control characters", repr(data), data, "This could lead to incorrect output.")
+            print("Note: Using the arrow keys may cause this problem in some terminals.")
+            if not force:
+                return
+        encoding = parser.string_to_encoding(data)
     except Exception:
         print("Failed to Decode Input String")
         if verbose:
@@ -262,7 +275,7 @@ def display_partitions(data, sep=None, as_latex=False, latex_command=None, latex
                 latex_command = "tableau"
             if sep is None:
                 sep = ",\, "
-            output = encoding_to_latex(encoding, sep, latex_command, latex_environment)
+            output = encoding_to_latex(encoding, sep, latex_command, latex_environment, latex_raw)
 
         else:
             if sep is None:
@@ -286,6 +299,7 @@ def main():
 
     def parse_args():
         argparser = ArgumentParser(prog=PROG_NAME, description=DESCRIPTION, epilog=EPILOG, formatter_class=RawTextHelpFormatter)
+        argparser.add_argument("-p", "--parser", dest="parser", choices=PARSER_NAMES, default="maple", action="store", help="Select either the maple or sage parser (default: sage)")
         argparser.add_argument("-i", dest="input", action="store", help="Read input from commandline")
         argparser.add_argument("-f", "--file", action="store", help="Read input from a file (overrides -i)")
         argparser.add_argument("-o", "--out", action="store", help="Output to a file (only available with -f)")
@@ -293,13 +307,27 @@ def main():
         argparser.add_argument("-s", "--sep", action="store", help="Separator within in each group (defaults: text=\", \" latex=\",\\, \")")
         argparser.add_argument("-t", "--tall", action="store_true", help="When outputting text, print parentheses at full height")
         argparser.add_argument("-l", "--latex", action="store_true", help="Output using LaTeX format")
+        argparser.add_argument("-r", "--raw", action="store_true", help="Output raw LaTeX")
         argparser.add_argument("-e", "--environment", action="store_true", help="Format LaTeX as an environment (for different packages)")
         argparser.add_argument("-c", "--command", action="store", help="Set the LaTeX command to use (for different packages)")
         argparser.add_argument("--no-wrap", action="store_true", help="Disable line wrapping (always used with -o)")
-        argparser.add_argument("--verbose", action="store_true", help="Print full error tracebacks")
+        argparser.add_argument("--verbose", action="store_true", help="Print full error tracebacks and debug information")
+        argparser.add_argument("--force", action="store_true", help="Ignores warnings and forces an output")
         return argparser.parse_args()
     
     args = parse_args()
+
+    if args.parser == "maple":
+        if args.verbose:
+            print("Using Parser: Maple")
+        parser = MapleParser()
+    elif args.parser == "sage":
+        if args.verbose:
+            print("Using Parser: Sage")
+        parser = SageParser()
+    else:
+        print("No Parser Named '" + str(args.parser) + "' Valid Parsers are: ", str(PARSER_NAMES))
+        return
 
     latex_command = "tableau"
     if args.command:
@@ -308,9 +336,11 @@ def main():
         "as_latex": args.latex,
         "latex_command": latex_command,
         "latex_environment": args.environment,
+        "latex_raw": args.raw,
         "sep": args.sep,
         "tall": args.tall,
-        "verbose": args.verbose
+        "verbose": args.verbose,
+        "force": args.force
     }
 
     if args.file:
@@ -322,21 +352,21 @@ def main():
         if args.out:
             with open(args.out, "a") as f:
                 for i, d in enumerate(re.split(r"[\n]{2,}", data)):
-                    display_partitions(d, **kwargs, wrapping=False, output_stream=f)
+                    display_partitions(d, parser, **kwargs, wrapping=False, output_stream=f)
                     print("\n\n", file=f)
         else:
             for i, d in enumerate(re.split(r"[\n]{2,}", data)):
                 if i > 0: print("\n\n")
-                display_partitions(d, **kwargs, wrapping=(not args.no_wrap))
+                display_partitions(d, parser, **kwargs, wrapping=(not args.no_wrap))
     elif args.input:
         data = args.input
-        display_partitions(data, **kwargs, wrapping=(not args.no_wrap))
+        display_partitions(data, parser, **kwargs, wrapping=(not args.no_wrap))
     else:
         print("Enter input string (Press enter with no input to exit; for other input methods see --help):")
         try:
             data = input("\n> ")
             while data:
-                display_partitions(data, **kwargs, wrapping=(not args.no_wrap))
+                display_partitions(data, parser, **kwargs, wrapping=(not args.no_wrap))
                 data = input("\n> ")
         except KeyboardInterrupt:
             print()
